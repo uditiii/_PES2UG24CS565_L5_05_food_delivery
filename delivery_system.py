@@ -13,6 +13,7 @@ menu = {}
 VALID_STATUSES = ["placed", "cooking", "out_for_delivery", "delivered"]
 DEFAULT_MENU = {"pizza": 250, "burger": 150, "fries": 90, "coke": 40}
 
+
 def create_order(customer, items, order_history=None):
     """Create an order and return its id.
 
@@ -28,10 +29,16 @@ def create_order(customer, items, order_history=None):
         raise ValueError("Not on the menu: " + ", ".join(unknown))
     total = sum(menu[i] for i in items)
     order_id = max(orders, default=0) + 1
-    orders[order_id] = {"customer": customer, "items": items, "total": total, "status": "placed"}
+    orders[order_id] = {
+        "customer": customer,
+        "items": items,
+        "total": total,
+        "status": "placed",
+    }
     if order_history is not None:
         order_history.append(order_id)
     return order_id
+
 
 def update_order_status(order_id, status):
     """Set an order's status; raise if the status or order id is invalid."""
@@ -40,6 +47,7 @@ def update_order_status(order_id, status):
     if order_id not in orders:
         raise KeyError(f"Unknown order id: {order_id!r}")
     orders[order_id]["status"] = status
+
 
 def read_menu_config(file="menu.json"):
     """Load the menu from a JSON file, falling back to the default menu."""
@@ -51,15 +59,20 @@ def read_menu_config(file="menu.json"):
     menu.clear()
     menu.update(loaded)
 
+
 def daily_revenue():
     """Return the total of all delivered orders."""
-    return sum(o["total"] for o in orders.values() if o["status"] == "delivered")
+    return sum(
+        o["total"] for o in orders.values() if o["status"] == "delivered"
+    )
+
 
 def backup_orders(file="orders.json"):
     """Write all orders to a JSON file."""
     # JSON instead of pickle: no arbitrary code execution on load (B301/B403)
     with open(file, "w", encoding="utf-8") as f:
         json.dump(orders, f)
+
 
 def restore_orders(file="orders.json"):
     """Replace the in-memory orders with the ones saved in a JSON file."""
@@ -69,23 +82,34 @@ def restore_orders(file="orders.json"):
     orders.clear()
     orders.update(restored)
 
+
 def print_queue():
     """Print every order with its customer, status and total."""
     print(f"Order queue at {datetime.now()}")
     for order_id, order in orders.items():
         print(order_id, order["customer"], order["status"], order["total"])
 
+
 def main():
     """Run a small demo of the order queue."""
     read_menu_config()
     history = []
-    requests = [("Asha", ["pizza", "coke"]), ("Ravi", ["burger", "sushi"]), ("", [])]
+    requests = [
+        ("Asha", ["pizza", "coke"]),
+        ("Ravi", ["burger", "sushi"]),
+        ("", []),
+    ]
     for customer, items in requests:
         try:
             create_order(customer, items, history)
         except ValueError as err:
             print("Could not create order:", err)
-    updates = [(1, "delivered"), (2, "teleported"), (42, "delivered"), (3, "delivered")]
+    updates = [
+        (1, "delivered"),
+        (2, "teleported"),
+        (42, "delivered"),
+        (3, "delivered"),
+    ]
     for order_id, status in updates:
         try:
             update_order_status(order_id, status)
@@ -95,6 +119,7 @@ def main():
     backup_orders()
     restore_orders()
     print_queue()
+
 
 if __name__ == "__main__":
     main()
