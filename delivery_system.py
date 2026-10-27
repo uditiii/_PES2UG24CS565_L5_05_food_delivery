@@ -1,5 +1,4 @@
 import json
-import pickle
 from datetime import datetime
 
 # Global state
@@ -19,10 +18,12 @@ def create_order(customer, items, order_history=[]):
     return order_history[-1]
 
 def update_order_status(order_id, status):
-    try:
-        orders[order_id]["status"] = status
-    except:
-        pass
+    # Fail loudly instead of silently swallowing errors (Bandit B110)
+    if status not in VALID_STATUSES:
+        raise ValueError("Invalid status: %r" % status)
+    if order_id not in orders:
+        raise KeyError("Unknown order id: %r" % order_id)
+    orders[order_id]["status"] = status
 
 def read_menu_config(file="menu.json"):
     global menu
@@ -39,14 +40,17 @@ def daily_revenue():
             revenue = revenue + orders[o]["total"]
     return revenue
 
-def backup_orders(file="orders.pkl"):
-    f = open(file, "wb")
-    pickle.dump(orders, f)
-    f.close()
+def backup_orders(file="orders.json"):
+    # JSON instead of pickle: no arbitrary code execution on load (B301/B403)
+    with open(file, "w", encoding="utf-8") as f:
+        json.dump(orders, f)
 
-def restore_orders(file="orders.pkl"):
-    global orders
-    orders = pickle.load(open(file, "rb"))
+def restore_orders(file="orders.json"):
+    global orders, next_id
+    with open(file, encoding="utf-8") as f:
+        # JSON object keys are always strings, so convert them back to ints
+        orders = {int(k): v for k, v in json.load(f).items()}
+    next_id = max(orders, default=0) + 1
 
 def printQueue():
     print("Order queue at %s" % datetime.now())
@@ -58,10 +62,12 @@ def main():
     a = create_order("Asha", ["pizza", "coke"])
     b = create_order("Ravi", ["burger", "sushi"])
     c = create_order("", [])
-    update_order_status(a, "delivered")
-    update_order_status(b, "teleported")
-    update_order_status(42, "delivered")
-    update_order_status(c, "delivered")
+    for order_id, status in [(a, "delivered"), (b, "teleported"),
+                             (42, "delivered"), (c, "delivered")]:
+        try:
+            update_order_status(order_id, status)
+        except (ValueError, KeyError) as err:
+            print("Could not update order:", err)
     print("Revenue today:", daily_revenue())
     backup_orders()
     restore_orders()
